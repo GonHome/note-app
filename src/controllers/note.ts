@@ -12,7 +12,7 @@ import {
 } from "../decorators";
 import * as md5 from 'md5';
 import * as joi from 'joi';
-import { Like } from "typeorm";
+import { Like, In } from "typeorm";
 import * as omit from 'omit.js';
 import * as jwt from "jsonwebtoken";
 import { User } from '../entity/User';
@@ -20,6 +20,7 @@ import { AppConfig } from '../utils/config';
 import NoteSchema from "../definitions/Note";
 import { IContext } from '../decorators/interface';
 import { Note } from "../entity/Note";
+import { Tag } from "../entity/Tag";
 
 @controller('/note')
 export default class NoteController {
@@ -90,7 +91,7 @@ export default class NoteController {
         isPin !== undefined ? note.isPin = isPin : null;
         isDelete !== undefined ? note.isDelete = isDelete : null;
       });
-      ctx.manager.save(notes);
+      await ctx.manager.save(notes);
     }
     return notes;
   }
@@ -113,10 +114,108 @@ export default class NoteController {
     const {
       ids, 
     } = ctx.$getParams();
-    console.log(ctx.$getParams());
     const notes: Note[] = await Note.findByIds(ids.split(','));
     await ctx.manager.remove(notes);
     return 'ok';
+  }
+
+   /**
+   * 添加标签
+   */
+  @post('/addTag')
+  @tag('笔记管理')
+  @parameter(
+    'body', 
+    joi.object().keys({
+      tagName: joi.string().required().description('标签名称'),
+      ids: joi.string().required().description('笔记IDS')
+    })
+  )
+  @summary('添加标签')
+  @login_required()
+  @response(200, { $ref: NoteSchema })
+  async addTag(ctx: IContext) {
+    const {
+      ids, 
+      tagName,
+    } = ctx.$getParams();
+    let tags: Tag[] = await Tag.find({
+      where: {
+        name: tagName,
+      }
+    });
+    if (tags.length === 0) {
+      const newTag = new Tag();
+      newTag.name = tagName;
+      await newTag.save();
+      tags = [newTag];
+    }
+    console.log(ctx.$getParams());
+    const notes: Note[] = await Note.find({
+      where: { id: In(ids.split(',')) },
+      relations: ['tags']
+    });
+    notes.forEach((note: Note) => {
+      const tagNames = note.tags.map(tag => tag.name);
+      if (tagNames.indexOf(tags[0].name) === -1) {
+        note.tags.push(tags[0]);
+      }
+    })
+    await ctx.manager.save(notes);
+    return notes;
+  }
+
+  /**
+   * 删除标签
+   */
+  @post('/delTag')
+  @tag('笔记管理')
+  @parameter(
+    'body', 
+    joi.object().keys({
+      tagName: joi.string().required().description('标签名称'),
+      ids: joi.string().required().description('笔记IDS')
+    })
+  )
+  @summary('删除标签')
+  @login_required()
+  @response(200, { $ref: NoteSchema })
+  async delTag(ctx: IContext) {
+    const {
+      ids, 
+      tagName,
+    } = ctx.$getParams();
+    console.log(ctx.$getParams());
+    const tags: Tag[] = await Tag.find({
+      where: {
+        name: tagName,
+      },
+      relations: ['notes'],
+    });
+    if (tags.length > 0) {
+      const notes: Note[] = await Note.find({
+        where: { id: In(ids.split(',')) },
+        relations: ['tags']
+      });
+      notes.forEach((note: Note) => {
+        const tagNames = note.tags.map((tag: Tag) => tag.name);
+        const index = tagNames.indexOf(tagName);
+        if (index > -1) {
+          note.tags.splice(index, 1);
+        }
+      })
+      await ctx.manager.save(notes);
+      const noteIds = tags[0].notes.map((note: Note) => note.id );
+      const idList = ids.split(",");
+      const isOther = noteIds.some((nodeId: number) => {
+        return idList.indexOf(`${nodeId}`) === -1;
+      });
+      if (!isOther) {
+        await ctx.manager.remove(tags[0]);
+      }
+      return notes;
+    }
+    return '无此标签'
   }
 
   /**
