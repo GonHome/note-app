@@ -26,7 +26,7 @@
     "mysql": "^2.16.0",
     "omit.js": "^1.0.0",
     "reflect-metadata": "^0.1.13",
-    "typeorm": "^0.2.12"
+    "typeorm": "^0.2.25"
   },
   "devDependencies": {
     "@types/joi": "^14.0.1",
