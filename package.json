@@ -20,7 +20,7 @@
     "koa-router": "^7.4.0",
     "koa2-swagger-ui": "^2.11.3",
     "lodash": "^4.17.11",
-    "log4js": "^4.0.0",
+    "log4js": "^6.4.0",
     "md5": "^2.2.1",
     "mongodb": "^3.3.0-beta2",
     "mysql": "^2.16.0",
